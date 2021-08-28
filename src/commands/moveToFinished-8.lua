@@ -73,7 +73,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
     -- NOTE: Priorities not supported yet for parent jobs.
     local parentId = ARGV[12]
-    if parentId ~= "" and ARGV[5] == "completed" then 
+    if parentId ~= "" then 
         local parentQueue = ARGV[13]
         local parentKey =  parentQueue .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
