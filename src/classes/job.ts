@@ -374,7 +374,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * @param token - unique token for the lock
    * @param duration - lock duration in milliseconds
    */
-  async extendLock(token: string, duration: number) {
+  extendLock(token: string, duration: number): Promise<number> {
     return Scripts.extendLock(this.queue, this.id, token, duration);
   }
 
@@ -491,28 +491,28 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * @returns true if the job has completed.
    */
-  isCompleted() {
+  isCompleted(): Promise<boolean> {
     return this.isInZSet('completed');
   }
 
   /**
    * @returns true if the job has failed.
    */
-  isFailed() {
+  isFailed(): Promise<boolean> {
     return this.isInZSet('failed');
   }
 
   /**
    * @returns true if the job is delayed.
    */
-  isDelayed() {
+  isDelayed(): Promise<boolean> {
     return this.isInZSet('delayed');
   }
 
   /**
    * @returns true if the job is waiting for children.
    */
-  isWaitingChildren() {
+  isWaitingChildren(): Promise<boolean> {
     return this.isInZSet('waiting-children');
   }
 
@@ -799,7 +799,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * @param timestamp - timestamp where the job should be moved back to "wait"
    * @returns
    */
-  moveToDelayed(timestamp: number) {
+  moveToDelayed(timestamp: number): Promise<void> {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
   }
 
@@ -837,7 +837,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: 'completed' | 'failed' = 'failed') {
+  async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
     const client = await this.queue.client;
 
     this.failedReason = null;

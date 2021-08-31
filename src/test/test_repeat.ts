@@ -425,14 +425,16 @@ describe('repeat', function() {
     await worker.close();
   });
 
-  // Skipped until we find a way of simulating time to avoid waiting 5 days
-  it.skip('should repeat once a day for 5 days', async function() {
+  it('should repeat once a day for 5 days', async function() {
+    this.timeout(200000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
     const date = new Date('2017-05-05 13:12:00');
-    this.clock.tick(date.getTime());
-    const nextTick = ONE_DAY;
+    this.clock.setSystemTime(date);
+
+    const nextTick = ONE_DAY + 10 * ONE_SECOND;
+    const delay = 5 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {});
 
@@ -442,16 +444,16 @@ describe('repeat', function() {
       {
         repeat: {
           cron: '0 1 * * *',
-          endDate: new Date('2017-05-10 13:12:00'),
+          endDate: new Date('2017-05-10 13:13:00'),
         },
       },
     );
-    this.clock.tick(nextTick);
+    this.clock.tick(nextTick + delay);
 
     let prev: Job;
     let counter = 0;
     const completing = new Promise<void>((resolve, reject) => {
-      queue.on('completed', async job => {
+      worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
@@ -461,10 +463,6 @@ describe('repeat', function() {
 
         counter++;
         if (counter == 5) {
-          const waitingJobs = await queue.getWaiting();
-          expect(waitingJobs.length).to.be.eql(0);
-          const delayedJobs = await queue.getDelayed();
-          expect(delayedJobs.length).to.be.eql(0);
           resolve();
         }
       });
@@ -475,13 +473,13 @@ describe('repeat', function() {
     await worker.close();
   });
 
-  // Skipped until we find a way of simulating time to avoid waiting a month
-  it.skip('should repeat 7:th day every month at 9:25', async function(done) {
+  it('should repeat 7:th day every month at 9:25', async function() {
+    this.timeout(200000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
     const date = new Date('2017-02-02 7:21:42');
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
 
     const worker = new Worker(queueName, async job => {});
 
@@ -498,26 +496,32 @@ describe('repeat', function() {
     );
     nextTick();
 
-    let counter = 20;
+    let counter = 10;
     let prev: Job;
-    worker.on('completed', async job => {
-      if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        const diff = moment(job.timestamp).diff(
-          moment(prev.timestamp),
-          'months',
-          true,
-        );
-        expect(diff).to.be.gte(1);
-      }
-      prev = job;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          const diff = moment(job.timestamp).diff(
+            moment(prev.timestamp),
+            'months',
+            true,
+          );
+          expect(diff).to.be.gte(1);
+        }
+        prev = job;
 
-      counter--;
-      if (counter == 0) {
-        done();
-      }
-      nextTick();
+        counter--;
+        if (counter == 0) {
+          resolve();
+        }
+        nextTick();
+      });
     });
+
+    await completing;
+    await queueScheduler.close();
+    await worker.close();
   });
 
   it('should create two jobs with the same ids', async function() {
@@ -853,19 +857,16 @@ describe('repeat', function() {
     await queueScheduler.close();
   });
 
-  it('should throw an error when using .cron and .every simutaneously', async function() {
-    try {
-      await queue.add(
+  it('should throw an error when using .cron and .every simultaneously', async function() {
+    await expect(
+      queue.add(
         'repeat',
         { type: 'm' },
         { repeat: { every: 5000, cron: '* /1 * * * * *' } },
-      );
-      throw new Error('The error was not thrown');
-    } catch (err) {
-      expect(err.message).to.be.eql(
-        'Both .cron and .every options are defined for this repeatable job',
-      );
-    }
+      ),
+    ).to.be.rejectedWith(
+      'Both .cron and .every options are defined for this repeatable job',
+    );
   });
 
   it('should emit a waiting event when adding a repeatable job to the waiting list', async function() {
